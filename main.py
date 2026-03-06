@@ -1,5 +1,6 @@
 import sys
 import os
+import traceback
 import multiprocessing
 
 # Required on macOS to prevent crashes when MediaPipe spawns subprocesses
@@ -8,6 +9,18 @@ if __name__ == "__main__":
 
 # Must be set before importing PyQt6 on macOS to avoid camera permission issues
 os.environ.setdefault("QT_MAC_WANTS_LAYER", "1")
+
+# Log file for crash debugging
+_LOG = os.path.expanduser("~/Desktop/opencv_error.log")
+
+
+def _log(msg: str):
+    try:
+        with open(_LOG, "a") as f:
+            f.write(msg + "\n")
+    except Exception:
+        pass
+
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
 from PyQt6.QtGui import QIcon
@@ -23,7 +36,28 @@ def _app_icon():
     return QIcon()
 
 
+def _excepthook(exc_type, exc_value, exc_tb):
+    msg = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+    _log("=== CRASH ===\n" + msg)
+    try:
+        app = QApplication.instance()
+        if app:
+            dlg = QMessageBox()
+            dlg.setWindowTitle("OpenCV Error")
+            dlg.setText("OpenCV encountered an error:\n\n" + str(exc_value))
+            dlg.setDetailedText(msg)
+            dlg.setIcon(QMessageBox.Icon.Critical)
+            dlg.exec()
+    except Exception:
+        pass
+    sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+
+sys.excepthook = _excepthook
+
+
 def main():
+    _log("Starting OpenCV...")
     app = QApplication(sys.argv)
     app.setApplicationName("OpenCV")
     app.setOrganizationName("OpenCV")
@@ -57,16 +91,16 @@ def main():
         msg = QMessageBox(window)
         msg.setWindowTitle("Accessibility Permission")
         msg.setText(
-            "To send keypresses to other apps, Open CV needs Accessibility access.\n\n"
-            "System Settings → Privacy & Security → Accessibility → add Terminal.\n\n"
-            "You can skip this for now — tracking still works, keypresses just won't "
-            "reach other apps until permission is granted."
+            "To control other apps (games, browsers, etc.), OpenCV needs Accessibility access.\n\n"
+            "System Settings → Privacy & Security → Accessibility → ＋ → add OpenCV\n\n"
+            "Without this, face tracking works but keypresses won't reach other apps."
         )
         msg.setIcon(QMessageBox.Icon.Information)
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)
         msg.exec()
         open(shown_file, "w").close()
 
+    _log("MainWindow shown, entering event loop.")
     sys.exit(app.exec())
 
 

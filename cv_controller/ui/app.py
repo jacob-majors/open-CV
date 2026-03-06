@@ -109,9 +109,9 @@ class MainWindow(QMainWindow):
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         toolbar.addWidget(spacer)
 
-        hotkey_label = QLabel("  ⌘⇧O  ")
+        hotkey_label = QLabel("  [8]  ")
         hotkey_label.setStyleSheet("color: #555; font-size: 11px;")
-        hotkey_label.setToolTip("Global hotkey: Cmd+Shift+O toggles tracking from any app")
+        hotkey_label.setToolTip("Global hotkey: press 8 from any app to toggle tracking")
         toolbar.addWidget(hotkey_label)
 
         about_btn = QPushButton("ℹ")
@@ -351,7 +351,7 @@ class MainWindow(QMainWindow):
             "at <b>Sonoma Academy</b> — March 2026</p>"
             "<hr>"
             "<p style='color:#888; font-size:11px;'>"
-            "Global hotkey: <b>⌘ Shift O</b> — toggle tracking from any app<br>"
+            "Global hotkey: <b>8</b> — toggle tracking from any app<br>"
             "Supported: face, head pose, hand gestures, hand position<br>"
             "Powered by MediaPipe · PyQt6 · pynput</p>"
         )
@@ -365,7 +365,7 @@ class MainWindow(QMainWindow):
         self.hide()
         self.tray.showMessage(
             "OpenCV running in menu bar",
-            "Use ⌘⇧O to toggle tracking, or click the menu bar icon.",
+            "Press 8 to toggle tracking, or click the menu bar icon.",
             QSystemTrayIcon.MessageIcon.Information, 2000,
         )
 

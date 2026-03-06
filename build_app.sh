@@ -32,12 +32,23 @@ pyinstaller \
   --hidden-import PyQt6.QtGui \
   main.py
 
+# Add camera permission to Info.plist (required for macOS camera access)
+PLIST="dist/OpenCV.app/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'OpenCV uses your camera to detect facial movements and hand gestures for adaptive control.'" "$PLIST" 2>/dev/null || \
+/usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription 'OpenCV uses your camera to detect facial movements and hand gestures for adaptive control.'" "$PLIST"
+/usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string 'OpenCV does not use the microphone, but macOS may require this entry.'" "$PLIST" 2>/dev/null || true
+
+# Re-sign after plist modification (strip resource forks first)
+find dist/OpenCV.app -exec xattr -c {} \; 2>/dev/null
+find dist/OpenCV.app -name "._*" -delete 2>/dev/null
+codesign --force --deep --no-strict -s - dist/OpenCV.app 2>/dev/null || true
+
 echo ""
 echo "=== Build complete! ==="
 echo "App is at: dist/OpenCV.app"
 echo ""
 echo "To distribute: zip it up"
-echo "  cd dist && zip -r OpenCV.app.zip OpenCV.app"
+echo "  cd dist && ditto -c -k --keepParent OpenCV.app OpenCV.app.zip"
 echo ""
 echo "IMPORTANT: Users must grant Accessibility permission to OpenCV.app"
 echo "  System Settings → Privacy & Security → Accessibility → + OpenCV"

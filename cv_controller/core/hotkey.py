@@ -8,8 +8,8 @@ class HotkeyListener(QObject):
     """Listens for a global hotkey and emits a signal when triggered."""
     triggered = pyqtSignal()
 
-    # Default: Cmd+Shift+O
-    DEFAULT_HOTKEY = "<cmd>+<shift>+o"
+    # Default: 8
+    DEFAULT_HOTKEY = "8"
 
     def __init__(self, hotkey: str = None, parent=None):
         super().__init__(parent)

@@ -10,3 +10,6 @@ build/
 # Large model files — downloaded by setup.sh
 resources/face_landmarker.task
 resources/gesture_recognizer.task
+
+# Node
+website/node_modules/

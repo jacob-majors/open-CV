@@ -1,0 +1,96 @@
+{
+  "name": "Default",
+  "version": 1,
+  "switches": [
+    {
+      "id": "default-0001",
+      "name": "Blink Left → Space",
+      "movement": "eyeBlinkLeft",
+      "threshold": 0.65,
+      "action_type": "tap",
+      "action_key": "space",
+      "cooldown_ms": 600,
+      "enabled": true
+    },
+    {
+      "id": "default-0002",
+      "name": "Blink Right → Enter",
+      "movement": "eyeBlinkRight",
+      "threshold": 0.65,
+      "action_type": "tap",
+      "action_key": "enter",
+      "cooldown_ms": 600,
+      "enabled": true
+    },
+    {
+      "id": "default-0003",
+      "name": "Head Turn Left → Left Arrow",
+      "movement": "yaw_left",
+      "threshold": 0.33,
+      "action_type": "tap",
+      "action_key": "left",
+      "cooldown_ms": 400,
+      "enabled": true
+    },
+    {
+      "id": "default-0004",
+      "name": "Head Turn Right → Right Arrow",
+      "movement": "yaw_right",
+      "threshold": 0.33,
+      "action_type": "tap",
+      "action_key": "right",
+      "cooldown_ms": 400,
+      "enabled": true
+    },
+    {
+      "id": "default-0005",
+      "name": "Head Tilt Up → Up Arrow",
+      "movement": "pitch_up",
+      "threshold": 0.33,
+      "action_type": "tap",
+      "action_key": "up",
+      "cooldown_ms": 400,
+      "enabled": true
+    },
+    {
+      "id": "default-0006",
+      "name": "Head Tilt Down → Down Arrow",
+      "movement": "pitch_down",
+      "threshold": 0.33,
+      "action_type": "tap",
+      "action_key": "down",
+      "cooldown_ms": 400,
+      "enabled": true
+    },
+    {
+      "id": "default-0007",
+      "name": "Head Roll Left → Tab",
+      "movement": "roll_left",
+      "threshold": 0.33,
+      "action_type": "tap",
+      "action_key": "tab",
+      "cooldown_ms": 500,
+      "enabled": true
+    },
+    {
+      "id": "default-0008",
+      "name": "Head Roll Right → Escape",
+      "movement": "roll_right",
+      "threshold": 0.33,
+      "action_type": "tap",
+      "action_key": "escape",
+      "cooldown_ms": 500,
+      "enabled": true
+    },
+    {
+      "id": "default-0009",
+      "name": "Mouth Open → Backspace",
+      "movement": "jawOpen",
+      "threshold": 0.5,
+      "action_type": "tap",
+      "action_key": "backspace",
+      "cooldown_ms": 700,
+      "enabled": false
+    }
+  ]
+}

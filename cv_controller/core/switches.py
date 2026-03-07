@@ -1,6 +1,7 @@
 from __future__ import annotations
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 
 _POSE_MAX_DEGREES = 45.0
@@ -103,12 +104,17 @@ class SwitchEvent:
     active:        bool
 
 
+_SMOOTH_WINDOW = 5   # frames to average (~167 ms at 30 fps)
+
+
 class SwitchEngine:
     def __init__(self):
         self.switches: list[SwitchDefinition] = []
         self._last_trigger:   dict[str, float] = {}
         self._was_active:     dict[str, bool]  = {}
         self._current_values: dict[str, float] = {}
+        # Per-switch rolling window of raw values for smoothing
+        self._history: dict[str, deque] = {}
 
     def get_value(self, movement: str, face_data: dict) -> float:
         blendshapes = face_data.get("blendshapes", {})
@@ -156,7 +162,14 @@ class SwitchEngine:
         for sw in self.switches:
             if not sw.enabled:
                 continue
-            value = min(1.0, max(0.0, self.get_value(sw.movement, face_data)))
+            raw = min(1.0, max(0.0, self.get_value(sw.movement, face_data)))
+
+            # Rolling average smoothing — reduces noise and false triggers
+            if sw.id not in self._history:
+                self._history[sw.id] = deque(maxlen=_SMOOTH_WINDOW)
+            self._history[sw.id].append(raw)
+            value = sum(self._history[sw.id]) / len(self._history[sw.id])
+
             self._current_values[sw.id] = value
 
             active      = value >= sw.threshold

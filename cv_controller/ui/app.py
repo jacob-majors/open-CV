@@ -15,9 +15,11 @@ from cv_controller.core.tracker import FaceTracker
 from cv_controller.core.switches import SwitchDefinition, SwitchEngine
 from cv_controller.core.emitter import ActionEmitter
 from cv_controller.core.hotkey import HotkeyListener
+from cv_controller.core.serial_reader import SerialThread
 from cv_controller.ui.camera_widget import CameraWidget
 from cv_controller.ui.switch_list import SwitchListWidget
 from cv_controller.ui.switch_dialog import SwitchDialog
+from cv_controller.ui.arduino_panel import ArduinoPanel
 
 PROFILES_DIR = Path.home() / "Library" / "Application Support" / "CVController" / "profiles"
 _RES         = Path(__file__).parent.parent.parent / "resources"
@@ -54,6 +56,9 @@ class MainWindow(QMainWindow):
         self._emitter = ActionEmitter()
         self._hotkey  = HotkeyListener()
         self._current_profile_path: Path | None = None
+
+        self._serial_thread: SerialThread | None = None
+        self._prev_serial: dict = {k: 0 for k in ["b1", "b2", "j1", "j2", "j3", "j4"]}
 
         self._setup_ui()
         self._setup_tray()
@@ -98,6 +103,13 @@ class MainWindow(QMainWindow):
         add_btn.clicked.connect(self._add_switch)
         toolbar.addWidget(add_btn)
 
+        self._arduino_btn = QPushButton("🎮 Arduino")
+        self._arduino_btn.setCheckable(True)
+        self._arduino_btn.setChecked(True)
+        self._arduino_btn.setToolTip("Show / hide the Arduino physical controller panel")
+        self._arduino_btn.toggled.connect(self._toggle_arduino_panel)
+        toolbar.addWidget(self._arduino_btn)
+
         self.flip_btn = QPushButton("⇄ Flip")
         self.flip_btn.setCheckable(True)
         self.flip_btn.setChecked(True)
@@ -129,19 +141,25 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        splitter = QSplitter(Qt.Orientation.Horizontal)
-        layout.addWidget(splitter)
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        layout.addWidget(self._splitter)
 
         self.camera_widget = CameraWidget()
-        splitter.addWidget(self.camera_widget)
+        self._splitter.addWidget(self.camera_widget)
 
         self.switch_list = SwitchListWidget()
         self.switch_list.edit_requested.connect(self._edit_switch)
         self.switch_list.delete_requested.connect(self._delete_switch)
-        splitter.addWidget(self.switch_list)
+        self._splitter.addWidget(self.switch_list)
 
-        splitter.setSizes([640, 280])
-        splitter.setHandleWidth(1)
+        self.arduino_panel = ArduinoPanel()
+        self.arduino_panel.connect_requested.connect(self._connect_arduino)
+        self.arduino_panel.disconnect_requested.connect(self._disconnect_arduino)
+        self.arduino_panel.mappings_changed.connect(self._on_arduino_mappings_changed)
+        self._splitter.addWidget(self.arduino_panel)
+
+        self._splitter.setSizes([580, 260, 260])
+        self._splitter.setHandleWidth(1)
 
     def _setup_tray(self):
         icon = self.windowIcon()
@@ -238,6 +256,77 @@ class MainWindow(QMainWindow):
         self.stop_tracking()
         QMessageBox.warning(self, "Tracking Error", msg)
 
+    # ── Arduino panel ─────────────────────────────────────────────────────────
+
+    def _toggle_arduino_panel(self, visible: bool):
+        sizes = self._splitter.sizes()
+        if visible:
+            # Restore panel — give it 260px, take equally from the other two
+            total = sum(sizes)
+            self._splitter.setSizes([total - 520, 260, 260])
+        else:
+            self._splitter.setSizes([sizes[0] + sizes[2], sizes[1], 0])
+
+    def _connect_arduino(self, port: str, baud: int):
+        if self._serial_thread and self._serial_thread.isRunning():
+            self._serial_thread.stop()
+        self._serial_thread = SerialThread(port, baud)
+        self._serial_thread.data_received.connect(self._on_serial_data)
+        self._serial_thread.connection_changed.connect(self._on_serial_connected)
+        self._serial_thread.error_occurred.connect(self._on_serial_error)
+        self._serial_thread.start()
+
+    def _disconnect_arduino(self):
+        if self._serial_thread:
+            self._serial_thread.stop()
+            self._serial_thread = None
+        self.arduino_panel.set_connected(False, "Disconnected")
+
+    @pyqtSlot(dict)
+    def _on_serial_data(self, data: dict):
+        # Update controller visualizer
+        self.arduino_panel.update_states(data)
+
+        # Detect 0 → 1 (press) and 1 → 0 (release) transitions
+        mappings = self.arduino_panel.get_mappings()
+        for key in ["b1", "b2", "j1", "j2", "j3", "j4"]:
+            curr = int(data.get(key, 0))
+            prev = self._prev_serial.get(key, 0)
+
+            if curr and not prev:
+                # Rising edge — fire / start hold
+                self.arduino_panel.flash_input(key)
+                m = mappings.get(key, {})
+                action_type = m.get("action_type", "tap")
+                action_key  = m.get("action_key", "")
+                self._emitter.execute(action_type, action_key, f"arduino_{key}", True)
+
+            elif not curr and prev:
+                # Falling edge — release hold (no-op for tap / mouse / scroll)
+                m = mappings.get(key, {})
+                if m.get("action_type") == "hold":
+                    self._emitter.execute("hold", m.get("action_key", ""),
+                                          f"arduino_{key}", False)
+
+        self._prev_serial = {k: int(data.get(k, 0))
+                             for k in ["b1", "b2", "j1", "j2", "j3", "j4"]}
+
+    @pyqtSlot(bool, str)
+    def _on_serial_connected(self, connected: bool, message: str):
+        self.arduino_panel.set_connected(connected, message)
+        if connected and not self._arduino_btn.isChecked():
+            # Auto-show the panel when a device connects
+            self._arduino_btn.setChecked(True)
+
+    @pyqtSlot(str)
+    def _on_serial_error(self, error: str):
+        self.arduino_panel.set_connected(False, f"Error: {error}")
+
+    def _on_arduino_mappings_changed(self):
+        # Auto-save to current profile when user edits a mapping
+        if self._current_profile_path:
+            self._save_profile()
+
     # ── Switch management ─────────────────────────────────────────────────────
 
     def _add_switch(self):
@@ -291,6 +380,8 @@ class MainWindow(QMainWindow):
             self.switch_list.clear()
             for sw in self._engine.switches:
                 self.switch_list.add_switch(sw)
+            if "arduino" in data:
+                self.arduino_panel.set_mappings(data["arduino"])
             for i in range(self.profile_combo.count()):
                 if self.profile_combo.itemData(i) == str(path):
                     self.profile_combo.blockSignals(True)
@@ -309,8 +400,12 @@ class MainWindow(QMainWindow):
             path = PROFILES_DIR / f"{name.strip()}.json"
             self._current_profile_path = path
         with open(path, "w") as f:
-            json.dump({"name": path.stem, "version": 1,
-                       "switches": [s.to_dict() for s in self._engine.switches]}, f, indent=2)
+            json.dump({
+                "name":    path.stem,
+                "version": 1,
+                "switches": [s.to_dict() for s in self._engine.switches],
+                "arduino":  self.arduino_panel.get_mappings(),
+            }, f, indent=2)
         self._refresh_profile_list()
 
     def _new_profile(self):
@@ -372,5 +467,6 @@ class MainWindow(QMainWindow):
     def _quit(self):
         self._hotkey.stop()
         self.stop_tracking()
+        self._disconnect_arduino()
         from PyQt6.QtWidgets import QApplication
         QApplication.quit()
